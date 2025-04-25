@@ -1,0 +1,16 @@
+[project]
+name = "bitnet-run-best"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "accelerate>=1.6.0",
+    "fastapi>=0.115.12",
+    "torch>=2.7.0",
+    "transformers",
+    "uvicorn>=0.34.2",
+]
+
+[tool.uv.sources]
+transformers = { git = "https://github.com/shumingma/transformers.git" }
