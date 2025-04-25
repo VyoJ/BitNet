@@ -48,6 +48,7 @@ class ChatRequest(BaseModel):
 class ChatResponse(BaseModel):
     response: str
     timing: Dict[str, float]
+    metrics: Dict[str, float]
 
 
 @app.on_event("startup")
@@ -89,6 +90,9 @@ async def chat(request: ChatRequest):
     chat_input = tokenizer(prompt, return_tensors="pt").to(model.device)
     tokenize_time = time.time() - template_start
 
+    # Count input tokens
+    input_token_count = chat_input["input_ids"].shape[-1]
+
     # Time the actual generation
     generation_start = time.time()
     generation_config = {
@@ -100,6 +104,9 @@ async def chat(request: ChatRequest):
         outputs = model.generate(**chat_input, **generation_config)
     generation_time = time.time() - generation_start
 
+    # Count generated tokens (excluding input tokens)
+    generated_token_count = outputs.shape[-1] - input_token_count
+
     # Time the decoding
     decode_start = time.time()
     response_text = tokenizer.decode(
@@ -110,6 +117,12 @@ async def chat(request: ChatRequest):
     # Calculate total time
     total_time = time.time() - start_time
 
+    # Calculate performance metrics
+    generation_tokens_per_sec = (
+        generated_token_count / generation_time if generation_time > 0 else 0
+    )
+    total_tokens_per_sec = generated_token_count / total_time if total_time > 0 else 0
+
     # Create timing information
     timing = {
         "total_seconds": total_time,
@@ -118,10 +131,25 @@ async def chat(request: ChatRequest):
         "decode_seconds": decode_time,
     }
 
-    return ChatResponse(response=response_text, timing=timing)
+    # Add comprehensive metrics
+    metrics = {
+        "input_tokens": input_token_count,
+        "output_tokens": generated_token_count,
+        "total_tokens": input_token_count + generated_token_count,
+        "generation_tokens_per_second": generation_tokens_per_sec,
+        "total_tokens_per_second": total_tokens_per_sec,
+        "tokenize_tokens_per_second": (
+            input_token_count / tokenize_time if tokenize_time > 0 else 0
+        ),
+        "decode_tokens_per_second": (
+            generated_token_count / decode_time if decode_time > 0 else 0
+        ),
+    }
+
+    return ChatResponse(response=response_text, timing=timing, metrics=metrics)
 
 
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run("bitnet_old:app", host="0.0.0.0", port=8000, reload=False)
+    uvicorn.run("bitnet_new:app", host="0.0.0.0", port=8000, reload=False)
